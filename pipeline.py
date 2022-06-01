@@ -75,14 +75,11 @@ def mode_of_wonky_array(wonky_array):
 
     for i in range(len(wonky_array[0])):
         for j in range(len(wonky_array[0][0])):
-            modeDict = {}
+            modeList = []
             for channel in wonky_array:
-                if channel[i][j] != 0:
-                    if channel[i][j] in modeDict:
-                        modeDict[channel[i][j]] += 1
-                    else:
-                        modeDict[channel[i][j]] = 1
-            entry = max(modeDict, key=modeDict.get)
+                if channel[i][j] != 0 and not np.isnan(channel[i][j]):
+                    modeList.append(channel[i][j])
+            entry = sp.mode(modeList)
             values[i][j] = entry
     
     return values
@@ -175,7 +172,6 @@ class ELG_Drawer:
         
         self.write_file("outPath changed: {}".format(self.outPath))
 
-
     def get_max_wavenumber(self):
         '''Likely useless function that determines the upper boundary of the datacube in wavenumbers
         
@@ -204,6 +200,8 @@ class ELG_Drawer:
         
         wavn_array = np.arange(min_wavenumber, max_wavenumber, wavenumber_step)
 
+        # ???
+        wavn_array = np.flip(wavn_array)
         return wavn_array
 
     def get_channel(self, wavenumber):
@@ -275,22 +273,51 @@ class ELG_Drawer:
         Returns:
             range: (array of floats) wavenumbers that represent the channels of the Emission
         '''
-        continuum_median = np.median(self.continuum_range(redshift), axis=0)
 
         ha_wl, _, _ = calculate_wavelength(redshift) 
+        width = HA_WIDTH * (1 + redshift)
 
-        ha_boundary = (wavenumber(ha_wl - (HA_WIDTH * (1 + redshift))), wavenumber(ha_wl + (HA_WIDTH * (1 + redshift))))
-
+        ha_boundary = (wavenumber(ha_wl - width), wavenumber(ha_wl + width))
         wavn_array = self.get_wavenumber_array()
 
         emission_wavn_array = []
         for i in range(len(wavn_array)):
             if wavn_array[i] < ha_boundary[0] and wavn_array[i] > ha_boundary[1]:
-                # we need to subtract the continuum median to get solely the emission component
-                emission_wavn_array.append(wavn_array[i]) # - continuum_median) 
+                emission_wavn_array.append((wavn_array[i]))
 
 
         return emission_wavn_array
+
+    def sum_arrays(self, array, algorithm="mean", stack=False):
+        '''Puts a 3d array into a 2d array by a multitude of means. Used in create_image and create_stack
+
+        Parameters:
+            array: (3d array of floats) input array
+
+            algorithm: (String) the algorithm to use to create the images. default='mean'. Options: 'mean', 'sum', 'median', 'mode'
+            stack: (Boolean) determines if it is a stack or an image
+        
+        Returns:
+            output: (2d array of floats)
+        '''
+        output = []
+
+        if algorithm == 'mean':
+            output = np.nanmean(array, axis=0)
+        elif algorithm == 'sum':
+            output = np.nansum(array, axis=0)
+        elif algorithm == 'median':
+            if stack:
+                output = self.image_of_medians(array)
+            else:
+                output = np.nanmedian(array, axis=0)
+        elif algorithm == 'mode':
+            output = mode_of_wonky_array(array)
+        else:
+            raise ValueError("Invalid algorithm specified. The choices are: 'mean', 'sum', 'median', 'mode'")     
+        
+        return output
+
 
     def sum_channels(self, wavn_array, xLoc, yLoc, algorithm="mean", name=""):
         ''' Adds all channels corresponding to a certain wavenumber array together to create images
@@ -320,21 +347,11 @@ class ELG_Drawer:
                 else:
                     measurements.append(value)
         
-        output = []
-        if(algorithm == "mean"):
-            output = np.average(measurements)
-        elif(algorithm == 'sum'):
-            output = np.sum(measurements)
-        elif(algorithm == 'median'):
-            output = np.median(measurements)
-        elif(algorithm == 'mode'):
-            output = sp.mode(measurements)
-        else:
-            raise ValueError("Invalid algorithm specified. The choices are: 'mean', 'sum', 'median', 'mode'")      
+        output = self.sum_arrays(measurements, algorithm=algorithm)
         
         return output
     
-    def create_image(self, wavn_image, xCentroid, yCentroid, algorithm="mean", name=""):
+    def create_image(self, wavn_image, xCentroid, yCentroid, algorithm="mean", name="", emission=False, redshift=0):
         '''Generates an image around a certain point
 
         Parameters:
@@ -345,6 +362,8 @@ class ELG_Drawer:
 
             algorithm: (String) the algorithm to use to create the images. default='mean'. Options: 'mean', 'sum', 'median', 'mode'
             name: (String) used only if a segm fits file is used for better images
+            emission: (Boolean) defaults to False: determines if continuum needs to be subtracted
+            redshift: (float) defaults to 0. This one is goofy. You NEED to provide a redshift if emission=True
 
         Returns:
             image: (2D array of floats) each point in the array represents a pixel in the image
@@ -359,7 +378,11 @@ class ELG_Drawer:
         for i, xLoc in enumerate(xValues):
             for j, yLoc in enumerate(yValues):
                 image[i][j] = self.sum_channels(wavn_image, xLoc, yLoc, algorithm, name=name)
-                
+        
+        if emission:
+            # subtracts the continuum
+            image = image - self.create_image(self.continuum_range(redshift), xCentroid, yCentroid, algorithm="median", name=name, emission=False)
+
         return image
     
     def import_image(self, path):
@@ -378,20 +401,20 @@ class ELG_Drawer:
 
         return data
 
-    def load_images(self, path="default"):
+    def load_images(self, path=None):
         '''Loads in all .fits cutouts from the output directory into a 3D array
         
         Returns:
             images: (3D array of floats) 3D array of images
 
-            path: (String) (Optional) Defaults to "default" which gives the objects output folder. Can be used to pull .fits files from anywhere
+            path: (String) (Optional) Defaults to None which gives the objects output folder. Can be used to pull .fits files from anywhere
         '''
         # to determine if the elg is faint enough to be stacked
         elg_list_file = open(self.elg_list_path, mode="r")
         elg_list = elg_list_file.readlines()
         elg_list_file.close()
 
-        if path == "default":
+        if path is None:
             path = self.outPath + "/fits"
 
         images = np.zeros((len(os.listdir(path)), 2 * SIZE, 2 * SIZE))
@@ -438,24 +461,24 @@ class ELG_Drawer:
         elg_list.write(printOut)
         elg_list.close()
 
-    def determine_median_flux(self, xLoc, yLoc, data="default"):
+    def determine_median_flux(self, xLoc, yLoc, data=None):
         '''Determines the median flux for a given x and y location
 
         Parameters:
             xCentroid: (int) x location
             yCentroid: (int) y location
 
-            data: (3D array of floats) (Optional) Defaults to "default" which uses self.data. Can be used to provide alternative cube
+            data: (3D array of floats) (Optional) Defaults to None which uses self.data. Can be used to provide alternative cube
         '''
 
         cube = self.data
-        if data != "default":
+        if data is not None:
             cube = data
         yVals = []
 
         for i in range(len(cube)):
             value = cube[i, yLoc, xLoc]
-            if value != 0:
+            if value != 0 and not np.isnan(value):
                 yVals.append(cube[i, yLoc, xLoc])
 
         return np.median(yVals)
@@ -521,12 +544,12 @@ class ELG_Drawer:
         
         return np.median(values)
 
-    def create_stack(self, algorithm="mean", path="default"):
+    def create_stack(self, algorithm="mean", path=None):
         '''Stacks a series of images created by the create_image function
 
         Parameters:
             algorithm: (String) (Optional) The algorithm to use to create the images. default='mean'. Options: 'mean', 'sum', 'median', 'mode'
-            path: (String) (Optional) Defaults to "default" which gives the objects output folder. Can be used to pull .fits files from anywhere
+            path: (String) (Optional) Defaults to None, which gives the objects output folder. Can be used to pull .fits files from anywhere
 
         Returns:
             image: (2D array of floats) each point in the array represents a pixel in the image
@@ -535,23 +558,11 @@ class ELG_Drawer:
             Will complain if you don't provide a valid algorithm
         '''
 
-        images = self.load_images(path=path)
+        images = self.load_images(path=path)  
 
-        image = np.zeros((0,0))
+        output = self.sum_arrays(images, algorithm=algorithm, stack=True)
 
-        if algorithm == "mean":
-            image = images.mean(axis=0)
-        elif algorithm == 'sum':
-            image = images.sum(axis=0)
-        elif algorithm == 'median':
-            image = self.image_of_medians(images)
-        elif algorithm == 'mode':
-            image = mode_of_wonky_array(images)
-        else:            
-        # If no valid algorithm type was specified
-            raise ValueError("Invalid algorithm specified. The choices are: 'mean', 'sum', 'median', 'mode'")     
-
-        return image
+        return output
 
     def save_pdf(self, name, image, xLoc=SIZE, yLoc=SIZE, stack=False):
         '''creates a pdf using matplotlib's imshow() function
@@ -598,6 +609,7 @@ class ELG_Drawer:
 
         plt.savefig("{}/{}.png".format(picsPath, name))
         fits.writeto("{}/{}".format(fitsPath, name), image, overwrite=True)
+    
 
 # For fun and testing functions. Can be ignored            
     def compare(self, image_1, image_2):
@@ -633,3 +645,32 @@ class ELG_Drawer:
         plt.scatter(xVals, yVals - np.median(yVals))
         plt.axhline(np.median(yVals))
         plt.show()
+    
+    def graph_wavn(self, name, continuum, emission, xCentroid, yCentroid):
+        '''
+        '''
+
+        yContinuum = []
+        yEmission = []
+        yTotal = []
+
+        for wavn in continuum:
+            channel = self.get_channel(wavn)
+            yContinuum.append(self.data[channel, yCentroid, xCentroid])
+
+        for wavn in emission:
+            channel = self.get_channel(wavn)
+            yEmission.append(self.data[channel, yCentroid, xCentroid])
+
+        total = self.get_wavenumber_array()
+
+        for wavn in total:
+            channel = self.get_channel(wavn)
+            yTotal.append(self.data[channel, yCentroid, xCentroid])
+
+        plt.plot(total, yTotal, "--")
+        plt.plot(emission, yEmission, color="red")
+        plt.plot(continuum, yContinuum, color="blue")
+        plt.title(name)
+        plt.show()
+
