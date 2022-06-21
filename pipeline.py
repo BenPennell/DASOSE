@@ -6,6 +6,8 @@ from scipy import stats as sp
 from datetime import datetime
 
 from astropy.visualization import ImageNormalize, AsinhStretch
+from matplotlib.patches import Circle
+from astropy.cosmology import FlatLambdaCDM
 
 # Wavelengths
 HALPHA_WAVELENGTH = 656.3 #nm
@@ -13,11 +15,14 @@ NII_LOWER_WAVELENGTH = 654.8 #nm
 NII_UPPER_WAVELENGTH = 658.3 #nm
 
 # Line Width Constants
-HA_WIDTH = 2
+HA_WIDTH = 1
 LINE_WIDTH = 2
 EDGE_WIDTH = 2
 
-SIZE = 20
+SIZE = 60
+APERTURE_SIZE = SIZE / 2
+
+RESOLUTION = 0.322 #arcsec/pix
 
 '''
 No Datacubes needed
@@ -83,7 +88,6 @@ def mode_of_wonky_array(wonky_array):
             values[i][j] = entry
     
     return values
-    
 
 '''
 Image Generator
@@ -91,7 +95,7 @@ Image Generator
 '''
 class ELG_Drawer:
 
-    def __init__(self, name, cube_path, elg_list_path="None", segm="None"):
+    def __init__(self, name, cube_path, elg_list_path="None", segm="None", z=0):
         '''Class for creating images of ELGs from .fits files and stacking those images
 
         Parameters:
@@ -102,6 +106,7 @@ class ELG_Drawer:
             segm: (String) path to the segm datacube. Effectively - the datacube with cutouts for each ELG. Defaults to "None"
         '''
         self.name = name
+        self.redshift = z
 
         self.elg_list_path = elg_list_path
         if(self.elg_list_path == "None"):
@@ -141,7 +146,7 @@ class ELG_Drawer:
 
         self.textPath = "./output/" + name + "/log.txt"
         f = open(self.textPath, "w")
-        f.write("Object: {}\nCreated: {}\nPath: {}\nelg_list: {}\nsegm: {}\n".format(self.name, timestamp, cube_path, elg_list_path, segm))
+        f.write("Object: {}\nCreated: {}\nPath: {}\nelg_list: {}\nsegm: {}\nredshift: {}".format(self.name, timestamp, cube_path, elg_list_path, segm, self.redshift))
         f.close()
         
     def write_file(self, message):
@@ -154,6 +159,15 @@ class ELG_Drawer:
         outFile = open(self.textPath, "a")
         outFile.write(message + "\n")
         outFile.close()
+
+    def set_redshift(self, z):
+        '''Set galaxy redshift
+
+        Parameters:
+            z: (float) redshift
+        '''
+
+        self.redshift = z
 
     def change_outPath(self, outPath):
         '''Changes the outPath for the datacube
@@ -261,7 +275,7 @@ class ELG_Drawer:
         
         return continuum_wavn_array
 
-    def emission_range(self, redshift):
+    def emission_range(self, redshift, line_type="ha"):
         '''Determins the range in which the emission line of the galaxy is measured
 
             The width of the emission line is defined as (from Qing's paper):
@@ -269,22 +283,36 @@ class ELG_Drawer:
 
         Parameters:
             redshift: (float) redshift of galaxy ~0.23
+
+            line_type: (Optional) (String) ha, nl, or nu. Decide which line we're interested in
         
         Returns:
-            range: (array of floats) wavenumbers that represent the channels of the Emission
+            (array of floats) array of wavenumbers that represent the channels of the Emission
         '''
-
-        ha_wl, _, _ = calculate_wavelength(redshift) 
-        width = HA_WIDTH * (1 + redshift)
-
-        ha_boundary = (wavenumber(ha_wl - width), wavenumber(ha_wl + width))
         wavn_array = self.get_wavenumber_array()
-
         emission_wavn_array = []
-        for i in range(len(wavn_array)):
-            if wavn_array[i] < ha_boundary[0] and wavn_array[i] > ha_boundary[1]:
-                emission_wavn_array.append((wavn_array[i]))
 
+        ha_wl, nl_wl, nu_wl = calculate_wavelength(redshift) 
+
+        target_wl = 0
+        if line_type == "ha":
+            target_wl = ha_wl
+        elif line_type == "nl":
+            target_wl = nl_wl
+        elif line_type == "nu":
+            target_wl = nu_wl
+        else:
+            raise NameError("Invalid line_type specified. The choices are: 'ha', 'nl' and 'nu'")
+
+        width = HA_WIDTH * (1 + redshift)
+        if line_type != "ha":
+            width = LINE_WIDTH * (1 + redshift)
+
+        boundary = (wavenumber(target_wl - width), wavenumber(target_wl + width))
+
+        for i in range(len(wavn_array)):
+            if wavn_array[i] < boundary[0] and wavn_array[i] > boundary[1]:
+                emission_wavn_array.append((wavn_array[i]))
 
         return emission_wavn_array
 
@@ -401,12 +429,13 @@ class ELG_Drawer:
 
         return data
 
-    def load_images(self, path=None):
+    def load_images(self, percentiles=(0, 50), path=None):
         '''Loads in all .fits cutouts from the output directory into a 3D array
         
         Returns:
             images: (3D array of floats) 3D array of images
 
+            percentiles: (tuple of floats) (Optional) determines what percentiles of brightness you want to use
             path: (String) (Optional) Defaults to None which gives the objects output folder. Can be used to pull .fits files from anywhere
         '''
         # to determine if the elg is faint enough to be stacked
@@ -429,7 +458,7 @@ class ELG_Drawer:
                 print("You included extra images in your outfolder. Be careful")
 
             if still_indexed: 
-                if self.is_below_average_flux(elg_name): # only include the faint ELGs
+                if self.is_within_range(elg_name, percentiles): # only include specific ELGs
                     image = self.import_image(os.path.join(path, filename))
                     try:
                         images[i] = image
@@ -494,12 +523,13 @@ class ELG_Drawer:
         
         return image
 
-    def is_below_average_flux(self, label, index=9):
+    def is_within_range(self, label, percentiles=(0,50), index=9):
         '''Is used for stacking. Will determine if a given ELG is faint enough to be included in the stack. By this method, the bottom half (less than the median) of ELGS will be used
         
         Parameters:
             label: (String) the number of the ELG as provided by the elg_list
 
+            percentiles: (tuple of floats) (Optional) determines what percentiles of brightness you want to use
             index: (int) (optional) defaults to 9. Depends on which index in each line the median flux is written
         
         Returns:
@@ -510,21 +540,24 @@ class ELG_Drawer:
         lines = elg_list.readlines()
         elg_list.close()
 
-        cutoff = self.median_flux_elg_list(index=index)
+        cutoff_lower = self.percentile_flux_elg_list(percentiles[0], index=index)
+        cutoff_upper = self.percentile_flux_elg_list(percentiles[1], index=index)
 
         for line in lines:
             line = line.split(" ")
             if label == line[0]:
-                if float(line[index]) < cutoff:
+                if cutoff_lower <= float(line[index]) and float(line[index]) <= cutoff_upper:
                     return True
                 else:
                     return False
         return False
 
-    def median_flux_elg_list(self, index=9):
+    def percentile_flux_elg_list(self, percentile, index=9):
         '''Determines the median of the median fluxes in the elg list. Used as part of the is_below_average_flux function
 
         Parameters:
+            percentile: (float)
+
             index: (int) (optional) defaults to 9. Depends on which index in each line the median flux is written
         
         Returns:
@@ -542,14 +575,15 @@ class ELG_Drawer:
             line = line.split(" ")
             values.append(float(line[index]))
         
-        return np.median(values)
+        return np.percentile(values, percentile)
 
-    def create_stack(self, algorithm="mean", path=None):
+    def create_stack(self, algorithm="mean", path=None, percentiles=(0, 50)):
         '''Stacks a series of images created by the create_image function
 
         Parameters:
             algorithm: (String) (Optional) The algorithm to use to create the images. default='mean'. Options: 'mean', 'sum', 'median', 'mode'
             path: (String) (Optional) Defaults to None, which gives the objects output folder. Can be used to pull .fits files from anywhere
+            percentiles: (tuple of floats) (Optional) determines what percentiles of brightness you want to use
 
         Returns:
             image: (2D array of floats) each point in the array represents a pixel in the image
@@ -558,7 +592,9 @@ class ELG_Drawer:
             Will complain if you don't provide a valid algorithm
         '''
 
-        images = self.load_images(path=path)  
+        self.write_file("stacking with {}, path={}, percentiles={}".format(algorithm, path, percentiles))
+
+        images = self.load_images(path=path, percentiles=(0, 50))  
 
         output = self.sum_arrays(images, algorithm=algorithm, stack=True)
 
@@ -608,8 +644,204 @@ class ELG_Drawer:
             plt.axis('off')
 
         plt.savefig("{}/{}.png".format(picsPath, name))
-        fits.writeto("{}/{}".format(fitsPath, name), image, overwrite=True)
+        fits.writeto("{}/{}".format(fitsPath, name + ".fits"), image, overwrite=True)
+        plt.clf()
     
+    def generate_distance_array(self, size, mode="center"):
+        '''Generates a two dimensional array where each entry is that cell's distance from the center of the array. Used for curve of growth
+
+        Parameters:
+            size: (int) Must be even, image must be square
+        Returns:
+            distances: (2D array of floats)
+        
+        Ok so how this works is really goofy. Imagine a square grid with even length.
+        We take the center as the center crosshair, and then we're calculating the distance to the center of each cell in the grid.
+        To do this, we simply calculate how far away in X and Y that cell is, then use pythagoras.
+        One problem: we're using the variable size/2 to denote the center, but since there will inevitably be an entry at size/2, we would have a distance of 0.
+        To solve this, we artificially increase the x and y locations by 1 if they are greater than or equal to size/2.
+        If size/2=30, then on the left will be x=29 and on the right x=31. This is the first way I thought to make it work. It's goofy, I know.
+        '''
+
+        distances = np.zeros((size, size))
+
+        for i in range(size):
+            for j in range(size):
+                tempX = i
+                tempY = j
+
+                if i >= size/2:
+                    tempX += 1
+                if j >= size/2:
+                    tempY += 1
+
+                xTrans = abs(tempX - size/2)
+                yTrans = abs(tempY - size/2)
+
+                distance = np.sqrt(xTrans**2 + yTrans**2)
+                distances[i, j] = distance
+
+        return distances
+
+    def curve_of_growth(self, name, image):
+        '''This function generates a curve of growth based on taking the distance to the center of each pixel and increasing outwards
+
+        Parameters:
+            name: (String)
+            image: (2D array of floats) the input image. Must have side lengths 2*SIZE
+
+        Returns:
+            TBD
+        '''
+        distances = self.generate_distance_array(2*SIZE)
+
+        curve = []
+
+        for p in range(APERTURE_SIZE): # each pixel length outwards
+            curve.append(0)
+            for i in range(2*SIZE): # These two loops go through the distance array to check
+                for j in range(2*SIZE):
+                    if distances[i, j] <= p:
+                        curve[p] += image[i, j]
+        
+        xVals = np.arange(1, APERTURE_SIZE + 1)
+
+        # I want to make a horizontal line where we are at 50% flux
+        half = np.max(curve)/2
+        target_r = self.determine_radius(xVals, curve, half)
+
+        plt.axhline(half, label="half flux: {}".format(half), color="red", lw=1)
+        plt.axvline(x=target_r, color="red", lw=1)
+        plt.plot(xVals, curve, "--")
+        plt.title("Curve of Growth for {}".format(name))
+        plt.ylabel("Total Flux")
+        plt.xlabel("Distance from center (Pix)")
+        plt.legend()
+        plt.savefig(self.outPath + "/CUSTOM {}.png".format(name))
+        plt.clf()
+        
+        self.draw_aperture(name, image, target_r)
+        return (xVals, curve)
+    
+    def determine_radius(self, radius_array, flux_array, target_flux):
+        '''Determines the approximate radius of a given flux generated by curve_of_growth
+
+        Parameters:
+            radius_array: (list of ints, or floats I suppose)
+            flux_array: (list of floats)
+            target_flux: (float)
+        
+        Returns:
+            target_r: (float)
+        '''
+
+        upperIndex = 0
+        lowerIndex = 0
+
+        # determine the two fluxes that the target flux is between, get their corresponding indeces
+        for i, val in enumerate(flux_array):
+            if val >= target_flux:
+                upperIndex = i
+                lowerIndex = i - 1
+                break
+        
+        # determine how 'far' from the lowerFlux to the upperFlux the target flux is
+        upperDistance = flux_array[upperIndex] - target_flux
+        lowerDistance = target_flux - flux_array[lowerIndex]
+
+        totalDistance = lowerDistance + upperDistance
+
+        distance = lowerDistance / totalDistance
+
+        # use that ratio to determine how 'far' away the target radius should be from the lower one
+        r_totalDistance = radius_array[upperIndex] - radius_array[lowerIndex]
+
+        r_lowerDistance = distance * r_totalDistance
+
+        target_r = r_lowerDistance + radius_array[lowerIndex]
+
+        return target_r
+
+    def draw_aperture(self, name, image, radius):
+        '''Draws a circle on an imshow() image with a given radius
+
+        Parameters:
+            name: (String)
+            image: (2D array of floats)
+            radius: (float)
+        '''
+        norm = ImageNormalize(vmin=np.min(image), vmax=np.max(image), stretch=AsinhStretch(a=0.1))
+
+        plt.rcParams["figure.figsize"] = [7.00, 3.50]
+        plt.rcParams["figure.autolayout"] = True
+
+        ax = plt.gca()
+
+        ax.imshow(image, origin="lower", norm=norm)
+
+        ax.set_title(name)
+
+        plt.axis('off')
+
+        circ = Circle((SIZE + 0.5, SIZE + 0.5), radius, color='red', linewidth=3, fill=False)
+        ax.add_patch(circ)
+
+        # plot a radial line and text
+        x = [SIZE + 0.5, SIZE + 0.5 + radius]
+        y = [SIZE + 0.5, SIZE + 0.5]
+        plt.plot(x, y, color='red', linewidth=1)
+
+        size = self.determine_length(radius)
+        plt.text(SIZE + 5, SIZE + 7, "r={:.3f}kpc".format(size.value), color='red', size=16)
+
+        plt.savefig("{}/{}.png".format(self.outPath, name))
+        plt.clf()
+
+    def determine_length(self, length):
+        '''Determines the size of an object at the redshift of the galaxy cluster
+
+        d = size / angle
+        d can be determined by the redshift and geometry of the universe using astropy.cosmology
+
+        Parameters:
+            length: (float) length of the object in pixels
+
+        Returns:
+            size: (float) size of that length in kpc
+        '''
+
+        universe = FlatLambdaCDM(H0=70, Om0=0.3)
+
+        angular_distance = universe.angular_diameter_distance(self.redshift) # Mpc / rad
+
+        angular_distance = angular_distance * 1000 # kpc / rad
+
+        angular_distance = angular_distance / (180 / np.pi) / 3600 # kpc / arcsec
+
+        angular_size = length * RESOLUTION # arcsec
+
+        size = angular_distance * angular_size # kpc
+
+        return size
+
+    def compare_curves(self, name, curve1, curve2):
+        '''Superimposes multiple curves
+
+        Parameters:
+            name: (String)
+            curve1/curve2: (tuple: (xVals, yVals))
+        '''
+        
+        plt.plot(curve1[0], curve1[1], "--")
+        plt.plot(curve2[0], curve2[1], "--")
+        plt.title("Curve of Growth for {}".format(name))
+        plt.ylabel("Total Flux")
+        plt.xlabel("Distance from center (Pix)")
+        plt.legend()
+        plt.grid('on')
+        plt.savefig(self.outPath + "/CUSTOM {}.png".format(name))
+        plt.clf()
+
 
 # For fun and testing functions. Can be ignored            
     def compare(self, image_1, image_2):
@@ -645,6 +877,7 @@ class ELG_Drawer:
         plt.scatter(xVals, yVals - np.median(yVals))
         plt.axhline(np.median(yVals))
         plt.show()
+        plt.clf()
     
     def graph_wavn(self, name, continuum, emission, xCentroid, yCentroid):
         '''
@@ -671,6 +904,49 @@ class ELG_Drawer:
         plt.plot(total, yTotal, "--")
         plt.plot(emission, yEmission, color="red")
         plt.plot(continuum, yContinuum, color="blue")
+        plt.axhline(y=0, color="black")
         plt.title(name)
         plt.show()
+        plt.clf()
+
+'''
+###########
+LEGACY CODE
+-----------
+
+def curve_of_growth(self, name, image):
+        # Determines and saves a png of the curve of growth
+
+        # Parameters:
+        #     name: (String)
+        #     image: (2D array of floats)
+        
+        image = abs(image)
+
+        radii = np.arange(1, SIZE*2)
+
+        print(radii)
+        position = (SIZE, SIZE)
+
+        apertures = [CircularAperture(position, r=r) for r in radii]
+
+        phot_table = aperture_photometry(image, apertures)
+
+        yVals = []
+        xVals = []
+
+        for i in range(1, SIZE*2 - 1):
+            value = phot_table["aperture_sum_{}".format(i)].data[0]
+            
+            yVals.append(value)
+            xVals.append(i)
+
+        plt.plot(xVals, yVals, "--")
+        plt.title("Curve of Growth for {}".format(name))
+        plt.ylabel("Total Flux")
+        plt.xlabel("Distance from center (Pix)")
+        plt.savefig("curvy boy {}".format(name))
+        plt.clf()
+
+'''
 
