@@ -25,7 +25,7 @@ EDGE_WIDTH = 2
 SIZE = 30 #the image will be 2SIZE by 2SIZE
 
 # Aperture size and 'closeness' used for curves of growth
-APERTURE_SIZE = int(SIZE * (3/4))
+APERTURE_SIZE = SIZE#int(SIZE * (3/4))
 CURVE_CLOSENESS = 0.05
 
 # Inner and outer radius used to determine sky value
@@ -96,6 +96,27 @@ def mode_of_wonky_array(wonky_array):
             values[i][j] = entry
     
     return values
+
+def convert_elg_list(name, path, elg_name=0, xCentroid=1, yCentroid=2, redshift=7):
+    '''converts Qing's elg list to the type I prefer to use. The type I prefer to use goes as follows:
+    In each row: index 0: ELG name, index 1: xCentroid, index2: yCentroid, index3: redshift, index4: median flux at centroid
+    '''
+
+    end_file = open("{}.txt".format(name), 'w')
+    infile = np.loadtxt(path, skiprows=1)
+
+    end_file.write("name xCentroid yCentroid redshift")
+    for elg in infile:
+        end_file.write("{} {} {} {}".format(elg[elg_name], elg[xCentroid], elg[yCentroid], elg[redshift]))
+
+def is_within_array(shape, values):
+    '''
+    '''
+    if values[0] < shape[0] and values[0] >= 0:
+        if values[1] < shape[1] and values[1] >= 0:
+            if values[2] < shape[2] and values[2] >= 0:
+                return True
+    return False
 
 '''
 Image Generator
@@ -322,6 +343,7 @@ class ELG_Drawer:
             (array of floats) array of wavenumbers that represent the channels of the Emission
         '''
         wavn_array = self.get_wavenumber_array()
+
         emission_wavn_array = []
 
         ha_wl, nl_wl, nu_wl = calculate_wavelength(redshift) 
@@ -378,7 +400,6 @@ class ELG_Drawer:
             output: (2d array of floats)
         '''
         output = []
-
         if algorithm == 'mean':
             output = np.nanmean(array, axis=0)
         elif algorithm == 'sum':
@@ -411,15 +432,19 @@ class ELG_Drawer:
         '''
 
         measurements = []
+        name = int(name)
+        xLoc = int(xLoc)
+        yLoc = int(yLoc)
+
         for wavn in wavn_array:
             channel = self.get_channel(wavn)
             value = self.data[channel, yLoc, xLoc]
             if not np.isnan(value):
                 if name != "":
-                    if self.segm[yLoc, xLoc] == name or self.segm[yLoc, xLoc] == 0:
+                    if self.segm[yLoc, xLoc] == 0 or self.segm[yLoc, xLoc] == name: 
                         measurements.append(value)
                     else:
-                        measurements.append(0)
+                        measurements.append(np.nan)
                 else:
                     measurements.append(value)
         
@@ -453,7 +478,6 @@ class ELG_Drawer:
         
         skyVal = np.nanmean(values)
 
-        print(skyVal)
         return skyVal
 
     def create_image(self, wavn_image, xCentroid, yCentroid, algorithm="mean", name="", emission=False, redshift=0):
@@ -490,9 +514,9 @@ class ELG_Drawer:
         # subtract the background average value
         image -= self.sky_value(image)
 
-        if emission:
-            # subtracts the continuum
-            image -= self.create_image(self.continuum_range(redshift), xCentroid, yCentroid, algorithm="median", name=name, emission=False)
+        # if emission:
+        #     # subtracts the continuum
+        #     image -= self.create_image(self.continuum_range(redshift), xCentroid, yCentroid, algorithm="median", name=name, emission=False)
 
         return image
 
@@ -536,13 +560,12 @@ class ELG_Drawer:
                 name = int(elg[0])
                 print("Printing ELG {}...".format(name))
                 range = self.get_wavn_range(elg[7], imtype)
-                
                 image = self.create_image(range, elg[1], elg[2], algorithm=algorithm, name=name)
 
                 if imtype != 'continuum':
                     image = self.create_image(range, elg[1], elg[2], algorithm=algorithm, name=name, emission=True, redshift=elg[7])
 
-                self.save_pdf("A2390 Object {} {}".format(name, imtype), image, elg[1], elg[2], subPath=imtype)
+                self.save_pdf("{} Object {} {}".format(self.name, name, imtype), image, elg[1], elg[2], subPath=imtype)
 
 
 ### STACKING ###
@@ -608,7 +631,7 @@ class ELG_Drawer:
             line = lines[i].split(" ")
             xCentroid = float(line[1])
             yCentroid = float(line[2])
-            printOut = printOut + lines[i][:-1] + " {:.3f}\n".format(self.determine_median_flux(int(xCentroid), int(yCentroid)))
+            printOut = printOut + lines[i][:-1] + " {}\n".format(self.determine_median_flux(int(xCentroid), int(yCentroid)))
         
         elg_list = open(self.elg_list_path, mode="w")
         elg_list.write(printOut)
@@ -742,7 +765,7 @@ class ELG_Drawer:
 
         for imtype in types:
             for algorithm in algorithms:
-                name = "Stack of A2390 ELG {}, stacked by {}".format(imtype, algorithm)
+                name = "Stack of {} ELG {}, stacked by {}".format(self.name, imtype, algorithm)
                 self.write_file("Stacking algorithm type: {}, saved as {}".format(algorithm, name))
                 image = self.create_stack(algorithm=algorithm, path="{}/fits/{}".format(self.outPath,imtype), percentiles=(0, 100))
                 self.save_pdf(name, image, stack=True, subPath=imtype)
@@ -788,7 +811,8 @@ class ELG_Drawer:
         ax = plt.gca()
         ax.imshow(image, origin="lower", norm=norm)
 
-        ax.set_title(name)
+        title = name.replace("halpha", "hα")
+        ax.set_title(title)
 
         if stack == False:
             xLocs, xLabels = plt.xticks()
@@ -891,7 +915,9 @@ class ELG_Drawer:
         plt.axvline(x=full_r, color="green", lw=0.5)
 
         plt.plot(xVals, curve, "--")
-        plt.title("{}".format(name))
+        title = name.replace("halpha", "hα")
+
+        plt.title(title)
         plt.ylabel("Total Flux")
         plt.xlabel("Distance from center (Pix)")
         plt.legend()
@@ -959,7 +985,8 @@ class ELG_Drawer:
 
         ax.imshow(image, origin="lower", norm=norm)
 
-        ax.set_title(name)
+        title = name.replace("halpha", "hα")
+        ax.set_title(title)
 
         plt.axis('off')
 
@@ -1062,6 +1089,71 @@ class ELG_Drawer:
         plt.savefig(self.outPath + "/CUSTOM {}.png".format(name))
         plt.clf()
 
+### ORIENTATION ###
+### ----------- ###
+
+    def determine_angle(self, xCoord, yCoord):
+        '''Determines the angle of an ELG in the cube, from the center, based on the angle from the 
+
+        Parameters:
+            xCoord: (float) x position, in pixels
+            yCoord: (float) y position, in pixels
+        
+        Returns:
+            theta: (float) Angle in radians
+        '''
+
+        xCenter = self.data.shape[2] / 2
+        yCenter = self.data.shape[1] / 2
+
+        dx = xCoord - xCenter
+        dy = yCoord - yCenter
+
+        theta = np.arctan2(dy, dx)
+
+        return abs(theta) #For whatever reason, these are all coming out to be negative from the way I want them to be measured.
+
+        # plt.imshow(self.data[30])
+        # x = [xCenter, xCoord]
+        # y = [yCenter, yCoord]
+        # plt.plot(x, y, color='red', linewidth=0.5)
+        # x = [xCenter, xCenter*2 - 1]
+        # y = [yCenter, yCenter]
+        # plt.plot(x, y, color='red', linewidth=0.5)
+        # plt.text(xCenter, yCenter + 10, "θ = {:.2f}".format(theta), color='black', size=12)
+        # plt.show()
+
+    def translate_point(self, xLoc, yLoc, d_theta):
+        '''
+        '''
+
+        xCenter = self.data.shape[2] / 2
+        yCenter = self.data.shape[1] / 2
+
+        radius = np.sqrt( (xCenter - xLoc)**2 + (yCenter - yLoc)**2 )
+
+        theta_i = self.determine_angle(xLoc, yLoc)
+
+        theta_f = theta_i + d_theta
+
+        xVal = xCenter + (radius * np.cos(theta_f))
+        yVal = yCenter + (radius * np.sin(theta_f))
+
+        return xVal, yVal
+
+    def rotate(self, image, d_theta):
+        '''
+        '''
+
+        for i in range(image.shape[1]):
+            for j in range(image.shape[0]):
+                return
+
+    def run_get_angle(self):
+        elg_list = np.loadtxt(self.elg_list_path, skiprows=1)
+
+        for elg in elg_list:
+            self.determine_angle(int(elg[1]), int(elg[2]))
 
 # For fun and testing functions. Can be ignored            
     def compare(self, image_1, image_2):
@@ -1158,7 +1250,7 @@ def curve_of_growth(self, name, image):
         for i in range(1, SIZE*2 - 1):
             value = phot_table["aperture_sum_{}".format(i)].data[0]
             
-            yVals.append(value)
+            yVals.append(value)             
             xVals.append(i)
 
         plt.plot(xVals, yVals, "--")
