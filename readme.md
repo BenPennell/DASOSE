@@ -1,8 +1,8 @@
 # Drawer And Stacker of SITELLE ELGs
 ## "DASOSE"
-Written by Ben Pennell.
+Written by Ben Pennell
 
-SURP. University of Toronto. July 13th, 2022
+SURP. University of Toronto. July 14th, 2022
 __________________________________
 
 # Mutable Constants and Variables
@@ -147,8 +147,193 @@ We then initialize the ELG_Drawer. The next step is to actually generate the ima
 
 The images are created by combining multiple channels together, and in general, we want to sum them. You can also combine them by mean, median or mode; it's up to you.
 
-Now, here are all the methods in this category
+## Image Methods
+## def get_max_wavenumber(self)
+Determines the maximum wavenumber that is represented by a channel in the cube
+        
+        Returns:
+            wavenumber: (float) maximum wavenumber in 1/cm
 
+## def get_wavenumber_array(self)
+Returns an array which contains the wavenumber for each channel in the cube
+A peculiar thing is that the array needs to be flipped. I don't understand why this is the case, but it may be due to the fact that ascending wavenumbers would correspond to wave lengths in descending order.
+        
+        Returns:
+            wavn_array: (float) array of wavenumbers
+
+## def get_channel(self, wavenumber)
+Determines in which channel a given measured wavenumber emission line lies
+
+        Parameters: 
+            wavenumber: (float) wavenumber in 1/cm 
+        
+        Returns: 
+            channel: (int) nearest channel to the given wavenumber
+
+## def continuum_range(self, redshift)
+Determins which channels will be a part of the continuum for a given ELG
+
+A certain area around each line, and on the edges, will not be a part of the continuum
+
+        The continuum is defined as being (from Qing's paper):
+            -2 nm from the edge of measurement (EDGE_WIDTH)
+            -1.5 * (1 + z) nm away from NII lines (NII_WIDTH)
+
+        Parameters:
+            redshift: (float) redshift of galaxy ~0.23
+        
+        Returns:
+            range: (array of floats) wavenumbers that represent the channels of the Emission
+
+## def emission_range(self, redshift, line_type="ha")
+Determins the channels which make up the chosen emission line
+
+        The width of the emission line is defined as (from Qing's paper):
+            -0.5 * (1 + z) nm from emission line. (HA_WIDTH)
+
+        Parameters:
+            redshift: (float) redshift of galaxy ~0.23
+
+            line_type: (Optional) (String) 'halpha', 'nIIl' and 'nIIu'. Decide which line we're interested in
+        
+        Returns:
+            (array of floats) array of wavenumbers that represent the channels of the Emission
+
+## get_wavn_range(self, redshift, imtype)
+Runner function for emission_range and continuum_range to easily iterate through them to make other functions more streamlined
+
+        Parameters:
+            redshift: (float) redshift of galaxy ~0.23
+            imtype: (String) type of wavn_range that we want: 'continuum', 'halpha', 'nIIl' and 'nIIu'
+
+        Returns:
+            (array of floats) array of wavenumbers that represent the channels of the Emission
+
+## def sum_arrays(self, array, algorithm="mean", stack=False)
+Puts a 3d array into a 2d array by a multitude of algorithms to condense the third axis. Used in create_image and create_stack.
+
+        Parameters:
+            array: (3d array of floats) input array
+
+            algorithm: (String) the algorithm to use to create the images. default='mean'. Options: 'mean', 'sum', 'median', 'mode'
+            stack: (Boolean) determines if it is a stack or an image
+        
+        Returns:
+            output: (2d array of floats)
+
+## def determine_median_flux(self, xLoc, yLoc, data=None)
+Determines the median flux for a given x and y location by combining the third axis of the datacube there. Used to create the image of medians
+
+        Parameters:
+            xCentroid: (int) x location
+            yCentroid: (int) y location
+
+            data: (3D array of floats) (Optional) Defaults to None which uses self.data. Subbing in your own is used to determine median flux of any cube
+        
+        Returns:
+            (float)
+
+## def image_of_medians(self, images)
+Used to create a single two dimensional array of the medians of the 0 axis of a 3 dimensional array of floats
+
+        Parameters:
+            images: (3D array of floats)
+        
+        Returns:
+            image: (2D array of floats) each index represents the median of the values from the third dimension in the input array
+
+## def sum_channels(self, wavn_array, xLoc, yLoc, algorithm="mean", name="")
+Adds all channels corresponding to a certain wavenumber array together to create images. Various algorithms can be used to combine them
+
+        Parameters:
+            wavn_array: (array) wavenumbers each corresponding to a channel, that will be included in the image
+            xLoc: (float) x location that we want to get the measurements from
+            yLoc: (float) y location that we want to get the measurements from
+
+            algorithm: (String) the algorithm to use to create the images. default='mean'. Options: 'mean', 'sum', 'median', 'mode'
+            name: (String) used only if a segm fits file is used for better images
+
+        Returns:
+            output: (float) Represents the average of all measurements, to be used in the image
+
+## def sky_value(self, image)
+Determines the 'sky value', the average background value, of a given 2D float array. This is calculated by taking a ring near the edges of the image and averaging the pixels inside
+It is done this way to ignore the contribution from the galaxy in the center of the image
+This method makes use of many methods created much farther down in the code as part of the curve of growth code
+
+        Parameters:
+            image: (2D array of floats) the input image
+        
+        Returns:
+            skyVal: (float) the average value of the background in the image
+
+## def create_image(self, wavn_image, xCentroid, yCentroid, algorithm="mean", name="", emission=False, redshift=0):
+Generates an image around a certain point. All above functions are used in this function
+
+        Parameters:
+            wavn_array: (array of floats) each wavenumber represents a channel in the cube that will be summed for the image
+            xCentroid: (float) x location of the center of the image
+            yCentroid: (float) y location of the center of the image
+
+            A bit messy kwargs. Effectively, if you need to make emission images, you have to subtract the continuum from it. So, you have to make two images and the kwargs are used to make that happen.
+            algorithm: (Optional) (String) the algorithm to use to create the images. default='mean'. Options: 'mean', 'sum', 'median', 'mode'
+            name: (Optional) (String) used only if a segm fits file is used
+            emission: (Optional) (Boolean) defaults to False: determines if continuum needs to be subtracted
+            redshift: (Optional) (float) defaults to 0. This one is goofy. You NEED to provide a redshift if emission=True
+
+        Returns:
+            image: (2D array of floats) each point in the array represents a pixel in the image
+
+## def generate_images(self, image_types, algorithm='sum', elg_list_path=None)
+Runner function for generating all the images needed for a certain analysis. Runs the create_image function in various ways
+
+        Parameters:
+            image_types: (list of floats) list of all the image types that will be generated. The following options: 'continuum', 'halpha', 'nIIl' and 'nIIu'
+            algorithm: (Optional) (String) algorithm type to use. Default is sum, there may not be other options.
+            elg_list_path: (Optional) (String) path to elg_list if cube was not initialized with one
+
+## Example code for create_image
+In this code I will loop through a list of ELGs and create images for them.
+```
+import numpy as np
+import pipeline as p
+
+NAME = 'A2390C'
+REDSHIFT = 0.228
+
+CUBE_PATH = 'E:/SITELLE/A2390/C4_Halpha/output/A2390C_cube.fits'
+SEGM_PATH = 'E:/SITELLE/A2390NW/C4_Halpha/output/A2390C_segm_MMA_lpf.fits'
+LIST_PATH = 'A2390C_ELG_list.txt'
+
+cube = p.ELG_Drawer(NAME, CUBE_PATH, elg_list_path=LIST_PATH, segm=SEGM_PATH, redshift=REDSHIFT, z_column=8)
+
+elg_list = np.loadtxt(LIST_PATH, skiprows=1)
+
+cube.write_file("I am creating continuum images for A2390 center field")
+
+for elg in elg_list:
+    elg_name = int(elg[0])
+    x_location = float(elg[1])
+    y_location = float(elg[2])
+    elg_redshift = float(elg[7])
+    
+    print("Saving ELG #{}".format(elg_name))
+
+    continuum_range = cube.continuum_range(elg_redshift)
+
+    image = cube.create_image(continuum_range, x_location, y_location, algorithm="sum", name=elg_name)
+
+    cube.save_pdf("A2390 Center Object #{} Continuum".format(elg_name), image, x_location, y_location, stack=False)
+```
+
+To have made images for the emission line, simply change the last three lines to the following:
+```
+emission_range = cube.emission_range(elg_redshift, line_type="ha")
+
+image = cube.create_image(emission_image, x_location, y_location, algorithm="sum", name=elg_name, emission=True, redshift=elg_redshift)
+
+cube.save_pdf("A2390 Center Object #{} Emission".format(elg_name), image, x_location, y_location, stack=False)
+```
 
 
 # Creating Stacks
