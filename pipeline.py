@@ -22,11 +22,12 @@ HA_WIDTH = 1
 LINE_WIDTH = 2
 EDGE_WIDTH = 2
 
-SIZE = 30 #the image will be 2SIZE by 2SIZE
+SIZE = 40 #the image will be 2SIZE by 2SIZE
 
 # Aperture size and 'closeness' used for curves of growth
 APERTURE_SIZE = SIZE#int(SIZE * (3/4))
 CURVE_CLOSENESS = 0.05
+FULL_LIGHT_CUTOFF = 0.10 # Used to determine whether the max value should be used for full light
 
 # Inner and outer radius used to determine sky value
 INNER_RADIUS = int(SIZE * (3/4))
@@ -98,7 +99,7 @@ def mode_of_wonky_array(wonky_array):
     
     return values
 
-def import_fits(self, path):
+def import_fits(path):
     '''Loads in a .fits cutout as a 2D array
 
     Parameters:
@@ -114,7 +115,7 @@ def import_fits(self, path):
 
     return data
 
-def convert_elg_list(name, path, elg_name=0, xCentroid=1, yCentroid=2, redshift=7):
+def convert_elg_list(name, path, elg_name=0, xCentroid=1, yCentroid=2, redshift=7, med_flux=8):
     '''converts Qing's elg list to the type I prefer to use. The type I prefer to use goes as follows:
     In each row: index 0: ELG name, index 1: xCentroid, index2: yCentroid, index3: redshift, index4: median flux at centroid
     '''
@@ -122,9 +123,9 @@ def convert_elg_list(name, path, elg_name=0, xCentroid=1, yCentroid=2, redshift=
     end_file = open("{}.txt".format(name), 'w')
     infile = np.loadtxt(path, skiprows=1)
 
-    end_file.write("name xCentroid yCentroid redshift")
+    end_file.write("name xCentroid yCentroid redshift med_flux")
     for elg in infile:
-        end_file.write("{} {} {} {}".format(elg[elg_name], elg[xCentroid], elg[yCentroid], elg[redshift]))
+        end_file.write("{} {} {} {} {}".format(elg[elg_name], elg[xCentroid], elg[yCentroid], elg[redshift], elg[med_flux]))
 
 '''
 Image Generator
@@ -132,7 +133,7 @@ Image Generator
 '''
 class ELG_Drawer:
 
-    def __init__(self, name, cube_path, elg_list_path="None", segm="None", redshift=0, z_column=7):
+    def __init__(self, name, cube_path, elg_list_path="None", segm="None", redshift=0, z_column=7, med_flux_col=8):
         '''Class for creating images of ELGs from .fits files and stacking those images
 
         Parameters:
@@ -147,6 +148,9 @@ class ELG_Drawer:
         self.name = name
         self.redshift = redshift
         self.z_column = z_column
+        self.med_flux_column = med_flux_col
+
+        self.dist_array = self.generate_distance_array(2*SIZE)
 
         self.elg_list_path = elg_list_path
         if(self.elg_list_path == "None"):
@@ -191,7 +195,7 @@ class ELG_Drawer:
 
         self.textPath = "./output/" + name + "/log.txt"
         f = open(self.textPath, "w")
-        f.write("Object: {}\nCreated: {}\nPath: {}\nelg_list: {}\nsegm: {}\nredshift: {}".format(self.name, timestamp, cube_path, elg_list_path, segm, self.redshift))
+        f.write("Object: {}\nCreated: {}\nPath: {}\nelg_list: {}\nsegm: {}\nredshift: {}\n".format(self.name, timestamp, cube_path, elg_list_path, segm, self.redshift))
         f.close()
         
     def write_file(self, message):
@@ -362,6 +366,7 @@ class ELG_Drawer:
         Parameters:
             redshift: (float) redshift of galaxy ~0.23
             imtype: (String) type of wavn_range that we want: 'continuum', 'halpha', 'nIIl' and 'nIIu'
+
         Returns:
             (array of floats) array of wavenumbers that represent the channels of the Emission
         '''
@@ -374,7 +379,7 @@ class ELG_Drawer:
             raise ValueError("imtype specified was not in the working list: 'continuum', 'halpha', 'nIIl' and 'nIIu'")
     
     def sum_arrays(self, array, algorithm="mean", stack=False):
-        '''Puts a 3d array into a 2d array by a multitude of means. Used in create_image and create_stack
+        '''Puts a 3d array into a 2d array by a multitude of algorithms. Used in create_image and create_stack
 
         Parameters:
             array: (3d array of floats) input array
@@ -410,6 +415,9 @@ class ELG_Drawer:
             yCentroid: (int) y location
 
             data: (3D array of floats) (Optional) Defaults to None which uses self.data. Can be used to provide alternative cube
+        
+        Returns:
+            (float)
         '''
 
         cube = self.data
@@ -418,9 +426,9 @@ class ELG_Drawer:
         yVals = []
 
         for i in range(len(cube)):
-            value = cube[i, yLoc, xLoc]
+            value = cube[i, xLoc, yLoc]
             if value != 0 and not np.isnan(value):
-                yVals.append(cube[i, yLoc, xLoc])
+                yVals.append(cube[i, xLoc, yLoc])
 
         return np.median(yVals)
 
@@ -488,18 +496,12 @@ class ELG_Drawer:
             skyVal: (float) the average value of the background in the image
         '''
 
-        distance_array = self.generate_distance_array(2*SIZE)
-
         values = []
-        temp = distance_array
 
         for i in range(SIZE*2):
             for j in range(SIZE*2):
-                if INNER_RADIUS < distance_array[i, j] and distance_array[i, j] < OUTER_RADIUS:
+                if INNER_RADIUS < self.dist_array[i, j] and self.dist_array[i, j] < OUTER_RADIUS:
                     values.append(image[i, j])
-                    temp[i, j] = 1
-                else:
-                    temp[i, j] = 0
         
         skyVal = np.nanmean(values)
 
@@ -539,9 +541,9 @@ class ELG_Drawer:
         # subtract the background average value
         image -= self.sky_value(image)
 
-        # if emission:
-        #     # subtracts the continuum
-        #     image -= self.create_image(self.continuum_range(redshift), xCentroid, yCentroid, algorithm="median", name=name, emission=False)
+        if emission:
+            # subtracts the continuum
+            image -= self.create_image(self.continuum_range(redshift), xCentroid, yCentroid, algorithm="median", name=name, emission=False)
 
         return image
 
@@ -582,9 +584,10 @@ class ELG_Drawer:
                 name = int(elg[0])
                 print("Printing ELG {}...".format(name))
                 range = self.get_wavn_range(elg[self.z_column], imtype)
-                image = self.create_image(range, elg[1], elg[2], algorithm=algorithm, name=name)
 
-                if imtype != 'continuum':
+                if imtype == 'continuum':
+                    image = self.create_image(range, elg[1], elg[2], algorithm=algorithm, name=name)
+                else:
                     image = self.create_image(range, elg[1], elg[2], algorithm=algorithm, name=name, emission=True, redshift=elg[self.z_column])
 
                 self.save_pdf("{} Object {} {}".format(self.name, name, imtype), image, elg[1], elg[2], subPath=imtype)
@@ -593,7 +596,7 @@ class ELG_Drawer:
 ### STACKING ###
 ### -------- ###
 
-    def load_images(self, percentiles=(0, 50), path=None):
+    def load_images(self, percentiles=(10, 90), path=None):
         '''Loads in all .fits cutouts from the output directory into a 3D array
         
         Returns:
@@ -664,42 +667,41 @@ class ELG_Drawer:
         elg_list.write(printOut)
         elg_list.close()
 
-    def is_within_range(self, label, percentiles=(0,50), index=9):
+    def is_within_range(self, label, percentiles=(10,90)):
         '''Is used for stacking. Will determine if a given ELG is within the acceptable range to be used in stacking. Default range is 0-50 percentiles.
         
         Parameters:
             label: (String) the number of the ELG as provided by the elg_list
 
-            percentiles: (tuple of floats) (Optional) determines what percentiles of brightness you want to use
-            index: (int) (optional) defaults to 9. Depends on which index in each line the median flux is written
-        
+            percentiles: (tuple of floats) (Optional) determines what percentiles of brightness you want to use        
         Returns:
             (boolean) whether or not the elg should be included in stacking
         '''
-
+        
+        # print("def is_within_range is automatically returning TRUE. BE CAREFUL")
+        # return True
+        
         elg_list = open(self.elg_list_path, mode="r")
         lines = elg_list.readlines()
         elg_list.close()
 
-        cutoff_lower = self.percentile_flux(percentiles[0], index=index)
-        cutoff_upper = self.percentile_flux(percentiles[1], index=index)
+        cutoff_lower = self.percentile_flux(percentiles[0])
+        cutoff_upper = self.percentile_flux(percentiles[1])
 
         for line in lines:
             line = line.split(" ")
             if label == line[0]:
-                if cutoff_lower <= float(line[index]) and float(line[index]) <= cutoff_upper:
+                if cutoff_lower <= float(line[self.med_flux_column]) and float(line[self.med_flux_column]) <= cutoff_upper:
                     return True
                 else:
                     return False
         return False
 
-    def percentile_flux(self, percentile, index=9):
+    def percentile_flux(self, percentile):
         '''Determines the ELG which represents a certain percentile of their median fluxes
 
         Parameters:
             percentile: (float)
-
-            index: (int) (optional) defaults to 9. Depends on which index in each line the median flux is written
         
         Returns:
             (float) median of the flux medians
@@ -712,13 +714,15 @@ class ELG_Drawer:
 
         values = []
 
-        for line in lines:
+        for i, line in enumerate(lines):
             line = line.split(" ")
-            values.append(float(line[index]))
+            value = line[self.med_flux_column]
+            value = value[:-1]
+            values.append(float(value))
         
         return np.percentile(values, percentile)
 
-    def create_stack(self, algorithm="mean", path=None, percentiles=(0, 50)):
+    def create_stack(self, algorithm="mean", path=None, percentiles=(0, 100)):
         '''Stacks a series of images created by the create_image function
 
         Parameters:
@@ -735,28 +739,64 @@ class ELG_Drawer:
 
         self.write_file("stacking with {}, path:{}, percentiles:{}".format(algorithm, path, percentiles))
 
-        images = self.load_images(path=path, percentiles=(0, 50))  
+        images = self.load_images(path=path, percentiles=percentiles)  
 
         output = self.sum_arrays(images, algorithm=algorithm, stack=True)
 
         return output
 
-    def generate_stacks(self, algorithms, types):
+    def generate_stacks(self, algorithms, types, percentiles=(10, 90), name=""):
         '''Runner function for creating multiple stacks of algorithms and types. Will save all the results in images.
         To use this function, you already need to have images made (both PNGs and .fits)
 
         Parameters:
             algorithms: (list of Strings) choose among: 'mean', 'sum', 'median', 'mode'
             types: (list of Strings) choose among: 'continuum', 'halpha', 'nIIl' and 'nIIu'
+
+            percentiles: (Optional) (tuple) defaults to (10, 90) the percentiles to include
+            name: (Optional) (String) name to append the rest of the stack title to
         '''
 
         for imtype in types:
             for algorithm in algorithms:
-                name = "Stack of {} ELG {}, stacked by {}".format(self.name, imtype, algorithm)
-                self.write_file("Stacking algorithm type: {}, saved as {}".format(algorithm, name))
-                image = self.create_stack(algorithm=algorithm, path="{}/fits/{}".format(self.outPath,imtype), percentiles=(0, 100))
-                self.save_pdf(name, image, stack=True, subPath=imtype)
-                self.curve_of_growth(name, image)
+                temp_name = name + "Stack of {} ELG {}, stacked by {}".format(self.name, imtype, algorithm)
+                
+                self.write_file("Stacking algorithm type: {}, saved as {}".format(algorithm, temp_name))
+                image = self.create_stack(algorithm=algorithm, path="{}/fits/{}".format(self.outPath,imtype), percentiles=percentiles)
+                self.save_pdf(temp_name, image, stack=True, subPath=imtype)
+                self.curve_of_growth(image, save=True, name=temp_name)
+        
+    def analyze_various_curves(self, algorithms, imtypes):
+        '''Creates plots and drawings for analysis. Will be difficult to use, I'm working on it
+        This is probably the worst code I have ever written
+        '''
+
+        buckets = [(10, 30), (30, 50), (50, 70), (70, 90)]
+        
+        overallVals = []
+        overallCurve = np.zeros(APERTURE_SIZE)
+
+        for imtype in imtypes:
+            for algorithm in algorithms:
+                plt.title("{} curves of {} stacked by {}".format(self.name, imtype, algorithm))
+                for bucket in buckets:
+                    image = self.create_stack(algorithm=algorithm, path="{}/fits/{}".format(self.outPath,imtype), percentiles=bucket)
+                    curve = self.curve_of_growth(image, save=False)#name="Curve of growth of {} for {} stacked by {} percentiles {}".format(self.name, imtype, algorithm, bucket) ,save=True)
+                    # curve = (xVals, curve, half_light, half_r, full_light, full_r)
+                    overallVals = curve[0]
+                    overallCurve += np.array(curve[1])
+                    plt.plot(curve[0], curve[1], "--", label=bucket)
+
+                plt.plot(overallVals, overallCurve, "-", color="black", label="Total")
+                plt.legend()
+                plt.xlabel("Radial Distance (pix)")
+                plt.ylabel("Total Flux")
+                plt.savefig("{}/{} curves of {} stacked by {}.png".format(self.outPath, self.name, imtype, algorithm))
+                plt.clf()
+
+                overallCurve = np.zeros(APERTURE_SIZE)
+            
+
 
 ### Save PDF ###
 ### -------- ###
@@ -770,8 +810,7 @@ class ELG_Drawer:
 
             stack: (Optional) (boolean) whether it is a stack or not. This gives it a special directory. defaults to False
             subPath: (Optional) (String) path from within the /pic or /fits tab to save them in. For subdirectories for more customization
-        Returns:
-            None. The pdf will be automatically saved.
+
         '''
 
         picsPath = self.outPath
@@ -858,12 +897,14 @@ class ELG_Drawer:
 
         return distances
 
-    def curve_of_growth(self, name, image):
+    def curve_of_growth(self, image, save=True, name=""):
         '''This function generates a curve of growth based on taking the distance to the center of each pixel and increasing outwards
 
         Parameters:
-            name: (String) Name to save the image as
             image: (2D array of floats) the input image. Must have side lengths 2*SIZE
+
+            save: (Optional) (boolean) if you want to save the images or not. Defaults to True
+            name: (Optional) (String) name to save the image as, if you're saving it
 
         Returns:
             TBD
@@ -873,9 +914,9 @@ class ELG_Drawer:
         try:
             os.mkdir(savePath)
         except:
-            print("There may be a problem saving the curves")
+            go = True
 
-        distances = self.generate_distance_array(2*SIZE)
+        distances = self.dist_array
 
         curve = []
 
@@ -890,29 +931,32 @@ class ELG_Drawer:
 
         # I want to make a horizontal line where we are at 50% flux
         full_light = self.determine_full_light(curve)
+        
         half_light = full_light/2
 
         half_r = self.determine_radius(xVals, curve, half_light)
         full_r = self.determine_radius(xVals, curve, full_light)
 
-        plt.axhline(half_light, label="half flux: {:.3f}".format(half_light), color="red", lw=0.5)
-        plt.axvline(x=half_r, color="red", lw=0.5)
+        if save:
+            plt.axhline(half_light, label="half flux: {:.3f}".format(half_light), color="red", lw=0.5)
+            plt.axvline(x=half_r, color="red", lw=0.5)
 
-        plt.axhline(full_light, label="full flux: {:.3f}".format(full_light), color="green", lw=0.5)
-        plt.axvline(x=full_r, color="green", lw=0.5)
+            plt.axhline(full_light, label="full flux: {:.3f}".format(full_light), color="green", lw=0.5)
+            plt.axvline(x=full_r, color="green", lw=0.5)
 
-        plt.plot(xVals, curve, "--")
-        title = name.replace("halpha", "hα")
+            plt.plot(xVals, curve, "--")
+            title = name.replace("halpha", "hα")
 
-        plt.title(title)
-        plt.ylabel("Total Flux")
-        plt.xlabel("Distance from center (Pix)")
-        plt.legend()
-        plt.savefig(savePath + "/CUSTOM {}.png".format(name))
-        plt.clf()
-        
-        self.draw_apertures(name, image, [half_r, full_r])
-        return (xVals, curve)
+            plt.title(title)
+            plt.ylabel("Total Flux")
+            plt.xlabel("Distance from center (Pix)")
+            plt.legend()
+            plt.savefig(savePath + "/CUSTOM {}.png".format(name))
+            plt.clf()
+            
+            self.draw_apertures(name, image, [half_r, full_r])
+
+        return (xVals, curve, half_light, half_r, full_light, full_r)
     
     def determine_radius(self, radius_array, flux_array, target_flux):
         '''Determines the approximate radius of a given flux generated by curve_of_growth
@@ -1028,6 +1072,7 @@ class ELG_Drawer:
         The median of these points is then taken. This is the full light flux. It will then be attributed a Radius based on another function
         In this way, it will be the first radius in which the full light flux is observed
 
+        If the maximum value is far larger than this cutoff point, then the maximum point will be chosen
         Parameters:
             curve: (list of floats)
         
@@ -1050,6 +1095,8 @@ class ELG_Drawer:
         
         max_flux = np.median(acceptable_points)
         
+        if max(curve) / max_flux > FULL_LIGHT_CUTOFF:
+            max_flux = max(curve)
         # plt.plot(curve_radii, curve, color="blue")
         # plt.plot(acceptable_radii, acceptable_points, color="red")
         # plt.axhline(max_flux)
@@ -1079,7 +1126,7 @@ class ELG_Drawer:
 ### ORIENTATION ###
 ### ----------- ###
 
-    def determine_angle(self, xCoord, yCoord):
+    def determine_angle(self, xCoord, yCoord, shape):
         '''Determines the angle of an ELG in the cube, from the center, based on the angle from the 
 
         Parameters:
@@ -1090,8 +1137,8 @@ class ELG_Drawer:
             theta: (float) Angle in radians
         '''
 
-        xCenter = self.data.shape[2] / 2
-        yCenter = self.data.shape[1] / 2
+        xCenter = shape[0]
+        yCenter = shape[1]
 
         dx = xCoord - xCenter
         dy = yCoord - yCenter
@@ -1110,17 +1157,15 @@ class ELG_Drawer:
         # plt.text(xCenter, yCenter + 10, "θ = {:.2f}".format(theta), color='black', size=12)
         # plt.show()
 
-    def translate_point(self, xLoc, yLoc, d_theta):
-        '''
+    def translate_point(self, xLoc, yLoc, d_theta, size):
+        ''' Rotates a given x and y location by a given angle (in radians), outputs new xVal, yVal
         '''
 
-        xCenter = self.data.shape[2] / 2
-        yCenter = self.data.shape[1] / 2
-
+        xCenter = size/2 - 1
+        yCenter = size/2 - 1
         radius = np.sqrt( (xCenter - xLoc)**2 + (yCenter - yLoc)**2 )
 
-        theta_i = self.determine_angle(xLoc, yLoc)
-
+        theta_i = self.determine_angle(xLoc, yLoc, (xCenter, yCenter))
         theta_f = theta_i + d_theta
 
         xVal = xCenter + (radius * np.cos(theta_f))
@@ -1132,15 +1177,40 @@ class ELG_Drawer:
         '''
         '''
 
-        for i in range(image.shape[1]):
-            for j in range(image.shape[0]):
-                return
+        new_image = np.zeros(image.shape)
+        size = image.shape[0]
+        for i in range(size):
+            for j in range(size):
+                xVal, yVal = self.translate_point(i, j, d_theta, size)
+                xVal = int(xVal)
+                yVal = int(yVal)
+                if xVal < size and xVal >= 0 and size > yVal and yVal >= 0:
+                    new_image[xVal, yVal] = image[i, j]
+        
+        norm = ImageNormalize(vmin=np.min(image), vmax=np.max(image), stretch=AsinhStretch(a=0.1))
 
-    def run_get_angle(self):
+        plt.rcParams["figure.figsize"] = [7.00, 3.50]
+        plt.rcParams["figure.autolayout"] = True
+
+        ax = plt.gca()
+
+        ax.imshow(new_image)
+
+        plt.show()
+        plt.clf()
+
+    def run_determine_angle(self):
         elg_list = np.loadtxt(self.elg_list_path, skiprows=1)
 
         for elg in elg_list:
             self.determine_angle(int(elg[1]), int(elg[2]))
+    
+    def run_rotate(self, path):
+        image = import_fits(path)
+
+        thetas = np.arange(0, 360, 30)
+        for theta in thetas:
+            self.rotate(image, np.radians(theta))
 
 # For fun and testing functions. Can be ignored            
     def compare(self, image_1, image_2):
