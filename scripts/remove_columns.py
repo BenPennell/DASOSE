@@ -1,4 +1,4 @@
-PATH = "E:\Summer Project 2022\scripts\RXJ2129_ELG_list.txt"
+PATH = "E:\Summer Project 2022\ELG_Lists\A2390C_ELG_list.txt"
 COUNT = 1
 
 infile = open(PATH, "r")

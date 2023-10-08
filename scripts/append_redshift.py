@@ -1,11 +1,12 @@
 import pickle
 import numpy as np
 
-PATH = 'E:\Summer Project 2022\ELG_Lists\RXJ2129_ELG_list.txt'
-infile = open("E:\SITELLE\RXJ2129\RXJ2129\RXJ2129-cc-MMA_lpf.pkl", 'rb')
+FIELD = "RXJ2129S"
+PATH = 'E:\AstroResearch\Summer Project 2022\ELG_Lists\{}_ELG_list.txt'.format(FIELD)
+infile = open("E:\AstroResearch\SITELLE\{}\{}\{}-cc-MMA_lpf.pkl".format(FIELD, FIELD, FIELD), 'rb')
+
 new_dict = pickle.load(infile)
 infile.close()
-
 
 elg_list_full = open(PATH, 'r')
 lines = elg_list_full.readlines()

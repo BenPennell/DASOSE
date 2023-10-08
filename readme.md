@@ -8,11 +8,8 @@ __________________________________
 # Mutable Constants and Variables
 ## Line Width Constants
 HA_WIDTH = 1 > Thickness of the Hα line
-
 LINE_WIDTH = 2 > Thickness of the NII lines
-
 EDGE_WIDTH = 2 > Edge values to ignore
-
 Each of these are measured in **nanometers**. They represent the width, in nm, of the given line.
 Their purpose is to determine what is and isn't part of the emission lines and continuum.
 Changing the values will change the output wavenumber arrays created by the emission_range and continuum_range functions
