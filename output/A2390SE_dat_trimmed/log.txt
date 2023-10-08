@@ -1,6 +1,0 @@
-Object: A2390SE_dat_trimmed
-Created: 03-Aug-2022 (14:22:04.459167)
-Path: E:/SITELLE/A2390SE/output/A2390SE_cube_lpf.fits
-elg_list: A2390SE_dat_trim.txt
-segm: E:/SITELLE/A2390SE/output/A2390SE_segm_MMA_lpf.fits
-redshift: 0.2323
