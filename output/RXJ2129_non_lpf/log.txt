@@ -1,0 +1,20 @@
+Object: RXJ2129_non_lpf
+Created: 04-Aug-2022 (11:54:24.097981)
+Path: E:\SITELLE\RXJ2129\RXJ2129\RXJ2129_cube.fits
+elg_list: E:\Summer Project 2022\ELG_Lists\RXJ2129_ELG_list.txt
+segm: E:\SITELLE\RXJ2129\RXJ2129\RXJ2129_segm_MMA_lpf.fits
+redshift: 0.2336
+Generating Images of the following types: ['continuum', 'halpha'].
+Generating Images with the following algorithm: sum
+Stacking algorithm type: mean, saved as Stack of RXJ2129_non_lpf ELG continuum, stacked by mean
+stacking with mean, path:./output/RXJ2129_non_lpf/fits/continuum, percentiles:(10, 90)
+Stacking algorithm type: sum, saved as Stack of RXJ2129_non_lpf ELG continuum, stacked by sum
+stacking with sum, path:./output/RXJ2129_non_lpf/fits/continuum, percentiles:(10, 90)
+Stacking algorithm type: median, saved as Stack of RXJ2129_non_lpf ELG continuum, stacked by median
+stacking with median, path:./output/RXJ2129_non_lpf/fits/continuum, percentiles:(10, 90)
+Stacking algorithm type: mean, saved as Stack of RXJ2129_non_lpf ELG halpha, stacked by mean
+stacking with mean, path:./output/RXJ2129_non_lpf/fits/halpha, percentiles:(10, 90)
+Stacking algorithm type: sum, saved as Stack of RXJ2129_non_lpf ELG halpha, stacked by sum
+stacking with sum, path:./output/RXJ2129_non_lpf/fits/halpha, percentiles:(10, 90)
+Stacking algorithm type: median, saved as Stack of RXJ2129_non_lpf ELG halpha, stacked by median
+stacking with median, path:./output/RXJ2129_non_lpf/fits/halpha, percentiles:(10, 90)

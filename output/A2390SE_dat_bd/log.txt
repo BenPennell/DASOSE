@@ -1,0 +1,9 @@
+Object: A2390SE_dat_bd
+Created: 01-Aug-2022 (16:32:31.711661)
+Path: E:/SITELLE/A2390SE/Output/A2390SE_cube_lpf.fits
+elg_list: A2390SE_dat.txt
+segm: E:/SITELLE/A2390SE/Output/A2390SE_segm_MMA_lpf.fits
+redshift: 0.228
+Testing version of the stack: mean, mean
+Stack algorithm type: mean, saved as Stack of all A2390NW objects stacked by mean
+stacking with mean, path:None, percentiles:(0, 100)

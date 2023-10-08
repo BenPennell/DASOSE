@@ -1,0 +1,13 @@
+Try stacking with top quarter/second quarter of emission brightness to see if there's a problem
+
+!!!Fix the mistake with how the arrays work for subtracting the continuum median!!!
+
+"Normalize the channels" otherwise goofy results ensue. Normalization is needed
+	Normalize the spectrum. pixel's flux needs to be normalized 0-1. I don't understand
+
+The stacks need to have the redshfits, shifted, so that everything is cenetered properly
+	We need to "de-redshift". I don't understand
+
+Maybe create images by mean instead of sum perhaps???
+
+Measure signal-to-noise???

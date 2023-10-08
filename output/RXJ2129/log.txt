@@ -1,0 +1,10 @@
+Object: RXJ2129
+Created: 15-Aug-2022 (14:58:57.730211)
+Path: E:\SITELLE\RXJ2129\RXJ2129\RXJ2129_cube_lpf.fits
+elg_list: E:\Summer Project 2022\ELG_Lists\RXJ2129_ELG_list.txt
+segm: E:\SITELLE\RXJ2129\RXJ2129\RXJ2129_segm_MMA_lpf.fits
+redshift: 0.2336
+stacking with mean, path:./output/RXJ2129/fits/continuum, percentiles:(10, 90)
+stacking with mean, path:./output/RXJ2129/fits/halpha, percentiles:(10, 90)
+stacking with mean, path:./output/RXJ2129/fits/continuum, percentiles:(10, 90)
+stacking with mean, path:./output/RXJ2129/fits/halpha, percentiles:(10, 90)

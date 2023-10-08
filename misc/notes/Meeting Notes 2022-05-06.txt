@@ -1,0 +1,41 @@
+There are a few things to keep in mind about stacking:
+------------------------------------------------------
+
+1) How we define the 'better' stack (quantitative way)
+	Mode? Mean + Median could be used to estimate Mode, for example.
+	Mode would be pixel value that appears most often - the sky.
+	Calculating mode would define the value of the sky in the cubes.
+	
+2) Stacking assumes spherical symmetry and so stacking will cause a loss in spatial information
+	Do we stack using the centroid of the continuum or the gas?
+	These could tell us different things
+	Stacking using Ha has not been done before (but it may be too faint)
+
+3) Write the pipeline in a general way. Don't hardcode a particular type of centroid/image so we can interchange gas/continuum. In theory it could be used to stack unrelated images. Also allow for different parameters to do the stacking: mean, median, mode, etc.
+	Use Qing's pipeline. Modularize as much as possible. 
+	Allow different algorithms to be used on the fly
+	Make it !!User Friendly!!
+
+
+Next Steps:
+-----------
+
+1) We could try and align objects based on transverse and radial position before stacking to reach a stronger conclusion
+	Determine other ways of figuring out how orientation fits in. This would solve the problem in (2) above.
+	Keep this in mind while making the pipeline
+
+Curve of Growth
+---------------
+
+We are after two measurements: What is the size of the stellar component vs the ironized gas component (star forming region) in galaxies?
+	What is their ratio? What does that say about star formation and ram pressure stripping?
+	How do we calculate it?
+
+Take an example:
+
+Half-light radius of a star: How far out do we go from the center before we encompass half of the light?
+	Create circular radii around the image. Sum up all of the light within concentric circles to deduce radius of half light.
+	Once we stop gaining light - the radius is set. (beyond the background level of light)
+	How exactly do we do this? We need an algorithm. We need to fit a formula to the asymptote. We need to know what this approaches.
+
+This same strategy can be used to calculate half-light radius of gas and continuum in galaxies.

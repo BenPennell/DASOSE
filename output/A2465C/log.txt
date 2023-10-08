@@ -1,0 +1,10 @@
+Object: A2465C
+Created: 15-Aug-2022 (14:58:54.548480)
+Path: E:\SITELLE\A2465C\A2465C\A2465C_cube_lpf.fits
+elg_list: E:\Summer Project 2022\ELG_Lists\A2465C_ELG_list.txt
+segm: E:\SITELLE\A2465C\A2465C\A2465C_segm_MMA_lpf.fits
+redshift: 0.245
+stacking with mean, path:./output/A2465C/fits/continuum, percentiles:(10, 90)
+stacking with mean, path:./output/A2465C/fits/halpha, percentiles:(10, 90)
+stacking with mean, path:./output/A2465C/fits/continuum, percentiles:(10, 90)
+stacking with mean, path:./output/A2465C/fits/halpha, percentiles:(10, 90)

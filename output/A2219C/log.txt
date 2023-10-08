@@ -1,0 +1,10 @@
+Object: A2219C
+Created: 15-Aug-2022 (15:05:16.754046)
+Path: E:\SITELLE\A2219C\A2219C\A2219C_cube_lpf.fits
+elg_list: E:\Summer Project 2022\ELG_Lists\A2219C_ELG_list.txt
+segm: E:\SITELLE\A2219C\A2219C\A2219C_segm_MMA_lpf.fits
+redshift: 0.2257
+stacking with mean, path:./output/A2219C/fits/continuum, percentiles:(10, 90)
+stacking with mean, path:./output/A2219C/fits/halpha, percentiles:(10, 90)
+stacking with mean, path:./output/A2219C/fits/continuum, percentiles:(10, 90)
+stacking with mean, path:./output/A2219C/fits/halpha, percentiles:(10, 90)

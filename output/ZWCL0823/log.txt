@@ -1,0 +1,10 @@
+Object: ZWCL0823
+Created: 15-Aug-2022 (14:58:58.833210)
+Path: E:\SITELLE\ZWCL0823\ZWCL0823\ZWCL0823_cube_lpf.fits
+elg_list: E:\Summer Project 2022\ELG_Lists\ZWCL0823_ELG_list.txt
+segm: E:\SITELLE\ZWCL0823\ZWCL0823\ZWCL0823_segm_MMA_lpf.fits
+redshift: 0.2261
+stacking with mean, path:./output/ZWCL0823/fits/continuum, percentiles:(10, 90)
+stacking with mean, path:./output/ZWCL0823/fits/halpha, percentiles:(10, 90)
+stacking with mean, path:./output/ZWCL0823/fits/continuum, percentiles:(10, 90)
+stacking with mean, path:./output/ZWCL0823/fits/halpha, percentiles:(10, 90)

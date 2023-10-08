@@ -1,0 +1,14 @@
+Object: A2390C_dat
+Created: 27-Jul-2022 (19:17:18.457593)
+Path: E:/SITELLE/A2390/C4_Halpha/output/A2390C_cube.fits
+elg_list: A2390C_dat.txt
+segm: E:/SITELLE/A2390/C4_Halpha/output/A2390C_segm_MMA_lpf.fits
+redshift: 0.245Testing version of the stack: mean, mean
+Stack algorithm type: mean, saved as Stack of all A2390C objects stacked by mean
+stacking with mean, path:None, percentiles:(0, 100)
+Testing version of the stack: mean, median
+Stack algorithm type: median, saved as Stack of all A2390C objects stacked by median
+stacking with median, path:None, percentiles:(0, 100)
+Testing version of the stack: mean, sum
+Stack algorithm type: sum, saved as Stack of all A2390C objects stacked by sum
+stacking with sum, path:None, percentiles:(0, 100)

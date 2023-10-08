@@ -1,0 +1,8 @@
+Object: A2390SE
+Created: 15-Aug-2022 (14:58:53.510962)
+Path: E:\SITELLE\A2390SE\A2390SE\A2390SE_cube_lpf.fits
+elg_list: E:\Summer Project 2022\ELG_Lists\A2390SE_ELG_list.txt
+segm: E:\SITELLE\A2390SE\A2390SE\A2390SE_segm_MMA_lpf.fits
+redshift: 0.228
+stacking with mean, path:./output/A2390SE/fits/continuum, percentiles:(10, 90)
+stacking with mean, path:./output/A2390SE/fits/halpha, percentiles:(10, 90)

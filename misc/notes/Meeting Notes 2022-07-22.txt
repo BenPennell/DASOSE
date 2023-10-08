@@ -1,0 +1,9 @@
+Only include galaxies not near the edge?
+
+Increase size to 45 or 50 or something and use a bigger sky ring for sky_val
+
+"stack the stacks" to see the circle thing more
+
+create stack of stacks of all the objects in the DAT file? all objects, all channels
+
+Correction factor for curves of growth for half light radius. Determine full light radius from previous system, then go to a good curve of growth and determine what percentage of the real full light it has at that radius. Use this factor to estimate the real full light radius by multiplying.(if the full light radius is measured at 12pix, go to the good image and determine that, for example, it needs to be multiplied by 1.1 to get the full light. Then go back to the original full light radius and multiply by that 1.1 factor. Get half light radius from there.

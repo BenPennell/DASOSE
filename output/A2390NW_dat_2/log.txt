@@ -1,0 +1,16 @@
+Object: A2390NW_dat_2
+Created: 29-Jul-2022 (00:05:30.835005)
+Path: E:/SITELLE/A2390NW/Output/A2390NW_cube_lpf.fits
+elg_list: A2390NW_dat_trim.txt
+segm: E:/SITELLE/A2390NW/Output/A2390NW_segm_MMA_lpf.fits
+redshift: 0.228
+No longer subtracting sky value, using segm_map and removed bad detections (70 objects)
+Testing version of the stack: mean, mean
+Stack algorithm type: mean, saved as Stack of all A2390C objects stacked by mean
+stacking with mean, path:None, percentiles:(0, 100)
+Testing version of the stack: mean, median
+Stack algorithm type: median, saved as Stack of all A2390C objects stacked by median
+stacking with median, path:None, percentiles:(0, 100)
+Testing version of the stack: mean, sum
+Stack algorithm type: sum, saved as Stack of all A2390C objects stacked by sum
+stacking with sum, path:None, percentiles:(0, 100)
