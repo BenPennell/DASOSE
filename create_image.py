@@ -39,9 +39,7 @@ for i, field in enumerate(cubes):
 
 #cube.analyze_various_curves(['mean', 'median'], ['continuum', 'halpha'])
 
-#make_some_shit()
-
-def make_some_shit(cube, elg_list):
+def make_some(cube, elg_list):
     for elg in elg_list:
 
         continuum = cube.continuum_range(elg[7])
