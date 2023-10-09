@@ -1,0 +1,10 @@
+Object: A1736C
+Created: 15-Aug-2022 (15:05:15.660430)
+Path: E:\SITELLE\A1736C\A1736C\A1736C_cube_lpf.fits
+elg_list: E:\Summer Project 2022\ELG_Lists\A1736C_ELG_list.txt
+segm: E:\SITELLE\A1736C\A1736C\A1736C_segm_MMA_lpf.fits
+redshift: 0.2323
+stacking with mean, path:./output/A1736C/fits/continuum, percentiles:(10, 90)
+stacking with mean, path:./output/A1736C/fits/halpha, percentiles:(10, 90)
+stacking with mean, path:./output/A1736C/fits/continuum, percentiles:(10, 90)
+stacking with mean, path:./output/A1736C/fits/halpha, percentiles:(10, 90)

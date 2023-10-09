@@ -324,7 +324,7 @@ class ELG_Drawer:
         return continuum_wavn_array
 
     def emission_range(self, redshift, line_type="ha"):
-        '''Determins the range in which the emission line of the galaxy is measured
+        '''Determines the range in which the emission line of the galaxy is measured
 
             The width of the emission line is defined as (from Qing's paper):
                 -0.5 * (1 + z) nm from emission line. (HA_WIDTH)
