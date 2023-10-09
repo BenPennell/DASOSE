@@ -1,8 +1,8 @@
 Object: A1736C
-Created: 08-Oct-2023 (22:58:59.810020)
+Created: 09-Oct-2023 (17:36:18.271019)
 Path: /home/ben.pennell/SITELLE/cubes/output/A1736C/A1736C_cube_lpf.fits
 elg_list: /home/ben.pennell/dev/DASOSE/ELG_lists/A1736C_ELG_list.txt
 segm: /home/ben.pennell/SITELLE/cubes/output/A1736C/A1736C_segm_MMA_lpf.fits
 redshift: 0.2323
-Generating Images of the following types: ['continuum', 'halpha'].
+Generating Images of the following types: ['halpha'].
 Generating Images with the following algorithm: sum

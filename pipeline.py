@@ -512,7 +512,7 @@ class ELG_Drawer:
 
         return skyVal
 
-    def create_image(self, wavn_image, xCentroid, yCentroid, algorithm="mean", name="", emission=False, redshift=0):
+    def create_image(self, wavn_image, xCentroid, yCentroid, algorithm="mean", name="", remove_skyval=True, emission=False, redshift=0):
         '''Generates an image around a certain point
 
         Parameters:
@@ -544,11 +544,12 @@ class ELG_Drawer:
                 image[i][j] = self.sum_channels(wavn_image, xLoc, yLoc, algorithm, name=name)
         
         # subtract the background average value
-        image -= self.sky_value(image)
+        if remove_skyval:
+            image -= self.sky_value(image)
 
+        # subtract the continuum
         if emission:
-            # subtracts the continuum
-            image -= self.create_image(self.continuum_range(redshift), xCentroid, yCentroid, algorithm="median", name=name, emission=False)
+            image -= self.create_image(self.continuum_range(redshift), xCentroid, yCentroid, algorithm=algorithm, name=name, emission=False)
 
         return image
 
