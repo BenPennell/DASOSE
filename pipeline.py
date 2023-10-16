@@ -22,7 +22,8 @@ HA_WIDTH = 1
 LINE_WIDTH = 2
 EDGE_WIDTH = 2
 
-SIZE = 40 #the image will be 2SIZE by 2SIZE
+SIZE = 40 # the image will be 2SIZE by 2SIZE
+MAX_ELG_SIZE = 20 # Maximum ELG size for brightness calculations (overestimation doesn't make it less correct, only more expensive)
 
 # Aperture size and 'closeness' used for curves of growth
 APERTURE_SIZE = SIZE#int(SIZE * (3/4))
@@ -174,7 +175,7 @@ class ELG_Drawer:
         except:
             print("WARNING: No segm path provided, this may result in failures")   
         
-        self.outPath = "./output/" + name
+        self.outPath = "./output/" + self.name
         self.outfolders = []
         
         try:
@@ -542,17 +543,64 @@ class ELG_Drawer:
         for i, xLoc in enumerate(xValues):
             for j, yLoc in enumerate(yValues):
                 image[i][j] = self.sum_channels(wavn_image, xLoc, yLoc, algorithm, name=name)
-        
-        # subtract the background average value
-        if remove_skyval:
-            image -= self.sky_value(image)
 
         # subtract the continuum
         if emission:
-            image -= self.create_image(self.continuum_range(redshift), xCentroid, yCentroid, algorithm=algorithm, name=name, emission=False)
+            image -= self.create_image(self.continuum_range(redshift), xCentroid, yCentroid, algorithm=algorithm, name=name, emission=False, remove_skyval=False)
 
+        # subtract the background average value
+        if remove_skyval:
+            image -= self.sky_value(image)
+            
         return image
 
+    def elg_brightness(self, name, xcentroid, ycentroid, image):
+        """_summary_
+
+        Args:
+            name (_type_): _description_
+            xcentroid (_type_): _description_
+            ycentroid (_type_): _description_
+            image (_type_): _description_
+        """
+        
+        total = 0
+        
+        for i in range(-MAX_ELG_SIZE, MAX_ELG_SIZE):
+            for j in range(-MAX_ELG_SIZE, MAX_ELG_SIZE):
+                if self.segm[int(xcentroid) + i, int(ycentroid) + j] == name:
+                    total += image[i, j]
+
+        return total
+    
+    def elg_brightness_catalogue(self, algorithm='sum', elg_list_path=None):
+        """_summary_
+
+        Args:
+            algorithm (str, optional): _description_. Defaults to 'sum'.
+            elg_list_path (_type_, optional): _description_. Defaults to None.
+        """
+        
+        # load in the elg_list
+        if elg_list_path is None:
+            elg_list = np.loadtxt(self.elg_list_path, skiprows=1)
+        else:
+            elg_list = np.loadtxt(elg_list_path, skiprows=1)
+
+        output = ""
+        
+        for elg in elg_list:
+            name = int(elg[0])
+            print("Calculating ELG {}...".format(name))
+            wavn_range = self.get_wavn_range(elg[self.z_column], "halpha")
+            image = self.create_image(wavn_range, elg[1], elg[2], algorithm=algorithm, name=name, emission=True, remove_skyval=True, redshift=elg[self.z_column])
+            brightness = self.elg_brightness(name, elg[1], elg[2], image)
+            output = output + "{} {}".format(name, brightness) + "\n"
+        
+        outFile = open(self.textPath, "a")
+        outFile.write(output)
+        outFile.close()
+        
     def generate_images(self, image_types, algorithm='sum', elg_list_path=None):
         '''A general run function for generating all the images needed for a certain analysis. 
 
@@ -582,19 +630,19 @@ class ELG_Drawer:
                 os.mkdir("{}/pic/{}".format(self.outPath, imtype))
                 os.mkdir("{}/fits/{}".format(self.outPath, imtype))
         except:
-            print("WARNING: Something goofy happened while creating new directories. May result in a crash.")
+            print("WARNING: Something goofy happened while creating new directories, they may already exist.")
         
         for imtype in working_image_types:
             print("PRINTING {} IMAGES".format(imtype))
             for elg in elg_list:
                 name = int(elg[0])
                 print("Printing ELG {}...".format(name))
-                range = self.get_wavn_range(elg[self.z_column], imtype)
+                wavn_range = self.get_wavn_range(elg[self.z_column], imtype)
 
                 if imtype == 'continuum':
-                    image = self.create_image(range, elg[1], elg[2], algorithm=algorithm, name=name)
+                    image = self.create_image(wavn_range, elg[1], elg[2], algorithm=algorithm, name=name)
                 else:
-                    image = self.create_image(range, elg[1], elg[2], algorithm=algorithm, name=name, emission=True, redshift=elg[self.z_column])
+                    image = self.create_image(wavn_range, elg[1], elg[2], algorithm=algorithm, name=name, emission=True, redshift=elg[self.z_column])
 
                 self.save_pdf("{} Object {} {}".format(self.name, name, imtype), image, elg[1], elg[2], subPath=imtype)
 
@@ -896,7 +944,7 @@ class ELG_Drawer:
             except:
                 print("There may have been a problem saving the stacks")
 
-        norm = ImageNormalize(vmin=np.min(image), vmax=np.max(image), stretch=AsinhStretch(a=0.1))
+        norm = ImageNormalize(vmin=np.percentile(image, 5), vmax=np.percentile(image, 95), stretch=AsinhStretch(a=0.1))
 
         plt.rcParams["figure.figsize"] = [7.00, 3.50]
         plt.rcParams["figure.autolayout"] = True
