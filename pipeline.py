@@ -568,9 +568,11 @@ class ELG_Drawer:
         
         for i in range(-MAX_ELG_SIZE, MAX_ELG_SIZE):
             for j in range(-MAX_ELG_SIZE, MAX_ELG_SIZE):
-                if self.segm[int(xcentroid) + i, int(ycentroid) + j] == name:
-                    total += image[i, j]
-
+                try:
+                    if self.segm[int(ycentroid) + j, int(xcentroid) + i] == name:
+                        total += image[i, j]
+                except:
+                    return -1
         return total
     
     def elg_brightness_catalogue(self, algorithm='sum', elg_list_path=None):
@@ -593,8 +595,12 @@ class ELG_Drawer:
             name = int(elg[0])
             print("Calculating ELG {}...".format(name))
             wavn_range = self.get_wavn_range(elg[self.z_column], "halpha")
-            image = self.create_image(wavn_range, elg[1], elg[2], algorithm=algorithm, name=name, emission=True, remove_skyval=True, redshift=elg[self.z_column])
-            brightness = self.elg_brightness(name, elg[1], elg[2], image)
+            try:
+                image = self.create_image(wavn_range, elg[1], elg[2], algorithm=algorithm, name=name, emission=True, remove_skyval=True, redshift=elg[self.z_column])
+                brightness = self.elg_brightness(name, elg[1], elg[2], image)
+            except: 
+                brightness = -1
+                
             output = output + "{} {}".format(name, brightness) + "\n"
         
         outFile = open(self.textPath, "a")
