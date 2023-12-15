@@ -23,7 +23,7 @@ LINE_WIDTH = 2
 EDGE_WIDTH = 2
 
 SIZE = 40 # the image will be 2SIZE by 2SIZE
-MAX_ELG_SIZE = 20 # Maximum ELG size for brightness calculations (overestimation doesn't make it less correct, only more expensive)
+MAX_ELG_SIZE = 15 # Maximum ELG size for brightness calculations (overestimation doesn't make it less correct, only more expensive)
 
 # Aperture size and 'closeness' used for curves of growth
 APERTURE_SIZE = SIZE#int(SIZE * (3/4))
@@ -575,7 +575,7 @@ class ELG_Drawer:
                     return -1
         return total
     
-    def elg_brightness_catalogue(self, algorithm='sum', elg_list_path=None):
+    def elg_brightness_catalogue(self, algorithm='mean', elg_list_path=None):
         """_summary_
 
         Args:
@@ -588,22 +588,39 @@ class ELG_Drawer:
             elg_list = np.loadtxt(self.elg_list_path, skiprows=1)
         else:
             elg_list = np.loadtxt(elg_list_path, skiprows=1)
-
-        output = ""
+        
+        try:
+            for imtype in ["continuum", "halpha"]:
+                os.mkdir("{}/pic/{}".format(self.outPath, imtype))
+                os.mkdir("{}/fits/{}".format(self.outPath, imtype))
+        except:
+            print("WARNING: Something goofy happened while creating new directories, they may already exist.")
+            
+        output = "NAME CONTINUUM HALPHA"
         
         for elg in elg_list:
             name = int(elg[0])
             print("Calculating ELG {}...".format(name))
-            wavn_range = self.get_wavn_range(elg[self.z_column], "halpha")
-            try:
-                image = self.create_image(wavn_range, elg[1], elg[2], algorithm=algorithm, name=name, emission=True, remove_skyval=True, redshift=elg[self.z_column])
-                brightness = self.elg_brightness(name, elg[1], elg[2], image)
-            except: 
-                brightness = -1
+            ha_range = self.get_wavn_range(elg[self.z_column], "halpha")
+            print(elg[self.z_column])
+            print(ha_range)
+            cont_range = self.get_wavn_range(elg[self.z_column], "continuum")
+            print(cont_range)
+            #try:
+            ha_image = self.create_image(ha_range, elg[1], elg[2], algorithm=algorithm, name=name, redshift=elg[self.z_column])
+            ha_brightness = self.elg_brightness(name, elg[1], elg[2], ha_image)
+            cont_image = self.create_image(cont_range, elg[1], elg[2], algorithm=algorithm, name=name, redshift=elg[self.z_column])
+            cont_brightness = self.elg_brightness(name, elg[1], elg[2], cont_image)
+            
+            self.save_pdf("Object {} halpha".format(name), ha_image, elg[1], elg[2], subPath="halpha")
+            self.save_pdf("Object {} continuum".format(name), cont_image, elg[1], elg[2], subPath="continuum")
+            #except: 
+                #ha_brightness = -1
+                #cont_brightness = -1
                 
-            output = output + "{} {}".format(name, brightness) + "\n"
+            output = output + "\n{} {} {}".format(name, cont_brightness, ha_brightness)
         
-        outFile = open(self.textPath, "a")
+        outFile = open(self.outPath + "/brightness.txt", "w")
         outFile.write(output)
         outFile.close()
         
